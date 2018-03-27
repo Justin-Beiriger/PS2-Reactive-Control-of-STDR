@@ -7,8 +7,8 @@
 #include <math.h> // math functions such as sine and cosine
 
 
-const double MIN_SAFE_DISTANCE = 1.0; // set alarm if anything is within 0.5m of the front of robot
-const double ROBOT_RADIUS = 0.3; // robot radius is 0.2 m
+const double MIN_SAFE_DISTANCE = 0.5; // set alarm if anything is within 0.5m of the front of robot
+const double ROBOT_RADIUS = 0.1; // robot radius is 0.2 m
 
 
 // these values to be set within the laser callback
@@ -19,7 +19,8 @@ double angle_max_=0.0;
 double angle_increment_=0.0;
 double range_min_ = 0.0;
 double range_max_ = 0.0;
-int number_of_rays_ = 667;
+int number_of_rays_ = 0;
+
 bool laser_alarm_=false;
 
 ros::Publisher lidar_alarm_publisher_;
@@ -45,6 +46,7 @@ void laserCallback(const sensor_msgs::LaserScan& laser_scan) {
         angle_increment_ = laser_scan.angle_increment;
         range_min_ = laser_scan.range_min;
         range_max_ = laser_scan.range_max;
+        number_of_rays_ = (angle_max_ - angle_min_) / angle_increment_;
         // what is the index of the ping that is straight ahead?
         // BETTER would be to use transforms, which would reference how the LIDAR is mounted;
         // but this will do for simple illustration
@@ -56,24 +58,19 @@ void laserCallback(const sensor_msgs::LaserScan& laser_scan) {
         
     }
     
-    
-    
     laser_alarm_ = false;
     for (int i=0;i<number_of_rays_;i++) {
        
-       double sideways_distance = 2;
-       double forward_distance = 2;
+       double sideways_distance;
+       double forward_distance;
        double theta = angle_min_ + (i*angle_increment_);
-       if (theta > -1.57 && theta < 1.57) {
-           sideways_distance = laser_scan.ranges[i] * abs_sin(theta);
-           forward_distance = laser_scan.ranges[i] * cos(theta);
-           if (sideways_distance < ROBOT_RADIUS && forward_distance < MIN_SAFE_DISTANCE) {
-               laser_alarm_ = true;
-               ROS_INFO("Theta = %f",theta);
-               ROS_INFO("Sideways dist = %f",sideways_distance);
-               ROS_INFO("Forward dist = %f",forward_distance);
-           }
-       }
+       
+       if (laser_alarm_ == false && laser_scan.ranges[i] > 0.1 && laser_scan.ranges[i] < MIN_SAFE_DISTANCE) {
+		   laser_alarm_ = true;
+           ROS_INFO("ALARM");
+           ROS_INFO("Theta = %f",theta);
+           ROS_INFO("distance = ",laser_scan.ranges[i]);
+	   }
    }
    
    /*
@@ -104,7 +101,7 @@ int main(int argc, char **argv) {
     lidar_alarm_publisher_ = pub; // let's make this global, so callback can use it
     ros::Publisher pub2 = nh.advertise<std_msgs::Float32>("lidar_dist", 1);  
     lidar_dist_publisher_ = pub2;
-    ros::Subscriber lidar_subscriber = nh.subscribe("robot0/laser_0", 1, laserCallback);
+    ros::Subscriber lidar_subscriber = nh.subscribe("scan", 1, laserCallback);
     ros::spin(); //this is essentially a "while(1)" statement, except it
     // forces refreshing wakeups upon new data arrival
     // main program essentially hangs here, but it must stay alive to keep the callback function alive
